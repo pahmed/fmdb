@@ -725,6 +725,7 @@
             // all is well, let's return.
         }
         else if (SQLITE_ERROR == rc) {
+            rc = sqlite3_reset(pStmt);  // Get the real error code & message
             NSLog(@"Error calling sqlite3_step (%d: %s) SQLITE_ERROR", rc, sqlite3_errmsg(db));
             NSLog(@"DB Query: %@", sql);
         }
