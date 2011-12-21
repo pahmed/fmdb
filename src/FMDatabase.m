@@ -159,6 +159,21 @@
     [openResultSets removeObject:setValue];
 }
 
+/** Returns a list of SQL queries that still have open result sets.
+    This is handy to call when debugging a problem where e.g. you can't close or vacuum the
+    database because queries are still in progress, and you can't figure out which FMResultSet
+    you forgot to close. */
+- (NSArray*) openResultSetQueries {
+    if (openResultSets.count == 0)
+        return nil;
+    NSMutableArray* queries = [NSMutableArray array];
+    for (NSValue* setValue in openResultSets) {
+        FMResultSet* resultSet = (FMResultSet*) [setValue pointerValue];
+        [queries addObject: [resultSet query]];
+    }
+    return queries;
+}
+
 - (FMStatement*)cachedStatementForQuery:(NSString*)query {
     return [cachedStatements objectForKey:query];
 }
