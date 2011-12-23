@@ -888,7 +888,7 @@
 
 + (BOOL)isThreadSafe {
     // make sure to read the sqlite headers on this guy!
-    return sqlite3_threadsafe();
+    return sqlite3_threadsafe() != 0;
 }
 
 @end
