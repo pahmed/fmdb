@@ -35,6 +35,10 @@ return ret;
     RETURN_RESULT_FOR_QUERY_WITH_SELECTOR(long, longForColumnIndex);
 }
 
+- (long long)longLongForQuery:(NSString*)query, ... {
+    RETURN_RESULT_FOR_QUERY_WITH_SELECTOR(long long, longLongIntForColumnIndex);
+}
+
 - (BOOL)boolForQuery:(NSString*)query, ... {
     RETURN_RESULT_FOR_QUERY_WITH_SELECTOR(BOOL, boolForColumnIndex);
 }

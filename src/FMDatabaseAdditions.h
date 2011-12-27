@@ -12,6 +12,7 @@
 
 - (int)intForQuery:(NSString*)objs, ...;
 - (long)longForQuery:(NSString*)objs, ...; 
+- (long long)longLongForQuery:(NSString*)objs, ...; 
 - (BOOL)boolForQuery:(NSString*)objs, ...;
 - (double)doubleForQuery:(NSString*)objs, ...;
 - (NSString*)stringForQuery:(NSString*)objs, ...; 
