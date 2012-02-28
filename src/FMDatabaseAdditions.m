@@ -8,6 +8,8 @@
 
 #import "FMDatabase.h"
 #import "FMDatabaseAdditions.h"
+#include <unistd.h>
+
 
 @implementation FMDatabase (FMDatabaseAdditions)
 

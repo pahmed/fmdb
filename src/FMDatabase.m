@@ -123,7 +123,7 @@
     }
     while (retry);
     
-    db = nil;
+    db = NULL;
     return YES;
 }
 
@@ -604,7 +604,7 @@
 }
 
 - (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray *)arguments {
-    return [self executeQuery:sql withArgumentsInArray:arguments orVAList:nil];
+    return [self executeQuery:sql withArgumentsInArray:arguments orVAList:NULL];
 }
 
 - (BOOL)executeUpdate:(NSString*)sql error:(NSError**)outErr withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args {
@@ -791,7 +791,7 @@
     va_list args;
     va_start(args, sql);
     
-    BOOL result = [self executeUpdate:sql error:nil withArgumentsInArray:nil orVAList:args];
+    BOOL result = [self executeUpdate:sql error:NULL withArgumentsInArray:nil orVAList:args];
     
     va_end(args);
     return result;
@@ -800,7 +800,7 @@
 
 
 - (BOOL)executeUpdate:(NSString*)sql withArgumentsInArray:(NSArray *)arguments {
-    return [self executeUpdate:sql error:nil withArgumentsInArray:arguments orVAList:nil];
+    return [self executeUpdate:sql error:NULL withArgumentsInArray:arguments orVAList:NULL];
 }
 
 - (BOOL)executeUpdateWithFormat:(NSString*)format, ... {
