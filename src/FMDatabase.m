@@ -757,8 +757,6 @@
         
     } while (retry);
     
-    assert( rc!=SQLITE_ROW );
-    
     
     if (shouldCacheStatements && !cachedStmt) {
         cachedStmt = [[FMStatement alloc] init];
