@@ -745,6 +745,9 @@
         else if (SQLITE_DONE == rc || SQLITE_ROW == rc) {
             // all is well, let's return.
         }
+        else if (SQLITE_CONSTRAINT == rc) {
+            // Constraint violation; not ok, but no need to log about it.
+        }
         else if (SQLITE_ERROR == rc) {
             rc = sqlite3_reset(pStmt);  // Get the real error code & message
             NSLog(@"Error calling sqlite3_step (%d: %s) SQLITE_ERROR", rc, sqlite3_errmsg(db));
