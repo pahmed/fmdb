@@ -306,6 +306,20 @@
     return ret;
 }
 
+static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
+    NSUInteger len;
+    NSUInteger maxLen = [str maximumLengthOfBytesUsingEncoding: NSUTF8StringEncoding];
+    char* buf = malloc(maxLen);
+    if (!buf)
+        return SQLITE_NOMEM;
+    if (![str getBytes: buf maxLength: maxLen usedLength: &len encoding: NSUTF8StringEncoding
+               options: 0 range: NSMakeRange(0, str.length) remainingRange: NULL]) {
+        free(buf);
+        return SQLITE_MISUSE;
+    }
+    return sqlite3_bind_text(pStmt, idx, buf, (int)len, &free);
+}
+
 - (void)bindObject:(id)obj toColumn:(int)idx inStatement:(sqlite3_stmt*)pStmt {
     
     if ((!obj) || ((NSNull *)obj == [NSNull null])) {
@@ -315,12 +329,13 @@
     // FIXME - someday check the return codes on these binds.
     else if ([obj isKindOfClass:[NSData class]]) {
         const void* bytes = [obj bytes];
-        if (!bytes) {
+        if (bytes) {
+            sqlite3_bind_blob(pStmt, idx, bytes, (int)[obj length], SQLITE_TRANSIENT);
+        } else {
             // it's an empty NSData object, aka [NSData data].
             // Don't pass a NULL pointer, or sqlite will bind a SQL null instead of a blob!
-            bytes = "";
+            sqlite3_bind_blob(pStmt, idx, "", 0, SQLITE_STATIC);
         }
-        sqlite3_bind_blob(pStmt, idx, bytes, (int)[obj length], SQLITE_STATIC);
     }
     else if ([obj isKindOfClass:[NSDate class]]) {
         sqlite3_bind_double(pStmt, idx, [obj timeIntervalSince1970]);
@@ -346,11 +361,11 @@
             sqlite3_bind_double(pStmt, idx, [obj doubleValue]);
         }
         else {
-            sqlite3_bind_text(pStmt, idx, [[obj description] UTF8String], -1, SQLITE_STATIC);
+            bindNSString(pStmt, idx, [obj description]);
         }
     }
     else {
-        sqlite3_bind_text(pStmt, idx, [[obj description] UTF8String], -1, SQLITE_STATIC);
+        bindNSString(pStmt, idx, [obj description]);
     }
 }
 
