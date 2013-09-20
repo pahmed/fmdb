@@ -759,6 +759,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         }
         else if (SQLITE_DONE == rc || SQLITE_ROW == rc) {
             // all is well, let's return.
+            rc = SQLITE_OK;
         }
         else if (SQLITE_CONSTRAINT == rc) {
             // Constraint violation; not ok, but no need to log about it.
@@ -791,18 +792,21 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         
         [cachedStmt release];
     }
-    
+
+    int rcCleanup;
     if (cachedStmt) {
         cachedStmt.useCount = cachedStmt.useCount + 1;
-        rc = sqlite3_reset(pStmt);
+        rcCleanup = sqlite3_reset(pStmt);
     }
     else {
         /* Finalize the virtual machine. This releases all memory and other
          ** resources allocated by the sqlite3_prepare() call above.
          */
-        rc = sqlite3_finalize(pStmt);
+        rcCleanup = sqlite3_finalize(pStmt);
     }
-    
+    if (rc == SQLITE_OK)
+        rc = rcCleanup;
+
     [self setInUse:NO];
     
     return (rc == SQLITE_OK);
