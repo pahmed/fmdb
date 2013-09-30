@@ -98,5 +98,8 @@
 - (void)close;
 - (void)reset;
 
+- (NSString*)explainQueryPlan;
++ (NSString*)explainQueryPlan: (sqlite3_stmt*)statement;
+
 @end
 

@@ -10,6 +10,8 @@
 @synthesize checkedOut;
 @synthesize traceExecution;
 
+#define EXPLAIN_EVERYTHING 0
+
 + (id)databaseWithPath:(NSString*)aPath {
     return [[[self alloc] initWithPath:aPath] autorelease];
 }
@@ -179,7 +181,6 @@
 }
 
 - (void)setCachedStatement:(FMStatement*)statement forQuery:(NSString*)query {
-    //NSLog(@"setting query: %@", query);
     query = [query copy]; // in case we got handed in a mutable string...
     [statement setQuery:query];
     [cachedStatements setObject:statement forKey:query];
@@ -544,8 +545,16 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
             }
         }
         while (retry);
-    }
-    
+
+#if EXPLAIN_EVERYTHING
+        if (shouldCacheStatements && pStmt) {
+            NSLog(@"$$$ Caching SQL query: %@\n%@",
+                  [sql stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]],
+                  [FMStatement explainQueryPlan: pStmt]);
+        }
+#endif
+}
+
     id obj;
     int idx = 0;
     int queryCount = sqlite3_bind_parameter_count(pStmt); // pointed out by Dominic Yu (thanks!)
@@ -698,6 +707,14 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
             }
         }
         while (retry);
+
+#if EXPLAIN_EVERYTHING
+        if (shouldCacheStatements && pStmt) {
+            NSLog(@"$$$ Caching SQL query: %@\n%@",
+                  [sql stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]],
+                  [FMStatement explainQueryPlan: pStmt]);
+        }
+#endif
     }
     
     
@@ -906,11 +923,14 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     if (shouldCacheStatements && !cachedStatements) {
         [self setCachedStatements:[NSMutableDictionary dictionary]];
     }
-    
-    if (!shouldCacheStatements) {
-        [self setCachedStatements:nil];
-    }
+
+// Took this out. IMHO setting this property to NO should suspend caching, not clear the cache.
+// There's already -clearCachedStatements for that. --Jens
+//    if (!shouldCacheStatements) {
+//        [self setCachedStatements:nil];
+//    }
 }
+
 
 + (BOOL)isThreadSafe {
     // make sure to read the sqlite headers on this guy!
@@ -952,6 +972,44 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
 - (NSString*)description {
     return [NSString stringWithFormat:@"%@ %ld hit(s) for query %@", [super description], useCount, query];
+}
+
+
+- (NSString*)explainQueryPlan {
+    return [[self class] explainQueryPlan: statement];
+}
+
++ (NSString*)explainQueryPlan: (sqlite3_stmt*)statement {
+    // Adapted from example at end of http://www.sqlite.org/eqp.html
+    const char *zSql;               /* Input SQL */
+    char *zExplain;                 /* SQL with EXPLAIN QUERY PLAN prepended */
+    sqlite3_stmt *pExplain;         /* Compiled EXPLAIN QUERY PLAN command */
+    int rc;                         /* Return code from sqlite3_prepare_v2() */
+
+    zSql = sqlite3_sql(statement);
+    if( zSql==0 ) return nil;
+
+    zExplain = sqlite3_mprintf("EXPLAIN QUERY PLAN %s", zSql);
+    if( zExplain==0 ) return nil;
+
+    rc = sqlite3_prepare_v2(sqlite3_db_handle(statement), zExplain, -1, &pExplain, 0);
+    sqlite3_free(zExplain);
+    if( rc!=SQLITE_OK ) return nil;
+
+    NSMutableString* result = [NSMutableString stringWithCapacity: 100];
+    while( SQLITE_ROW==sqlite3_step(pExplain) ){
+        int iSelectid = sqlite3_column_int(pExplain, 0);
+        int iOrder = sqlite3_column_int(pExplain, 1);
+        int iFrom = sqlite3_column_int(pExplain, 2);
+        const char *zDetail = (const char *)sqlite3_column_text(pExplain, 3);
+
+        if (result.length > 0)
+            [result appendString: @"\n"];
+        [result appendFormat: @"%d %d %d %s", iSelectid, iOrder, iFrom, zDetail];
+    }
+    
+    sqlite3_finalize(pExplain);
+    return result;
 }
 
 
