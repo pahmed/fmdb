@@ -308,6 +308,12 @@
 }
 
 static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
+    // First attempt: Get a C string directly from the CFString if it's in the right format:
+    const char* cstr = CFStringGetCStringPtr((CFStringRef)str, kCFStringEncodingUTF8);
+    if (cstr) {
+        size_t len = strlen(cstr);
+        return sqlite3_bind_text(pStmt, idx, cstr, (int)len, SQLITE_TRANSIENT);
+    }
     NSUInteger len;
     NSUInteger maxLen = [str maximumLengthOfBytesUsingEncoding: NSUTF8StringEncoding];
     char* buf = malloc(maxLen);
@@ -322,12 +328,35 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 }
 
 - (void)bindObject:(id)obj toColumn:(int)idx inStatement:(sqlite3_stmt*)pStmt {
-    
-    if ((!obj) || ((NSNull *)obj == [NSNull null])) {
-        sqlite3_bind_null(pStmt, idx);
-    }
-    
     // FIXME - someday check the return codes on these binds.
+    
+    if ([obj isKindOfClass:[NSNumber class]]) {
+        const char* objCType = [obj objCType];
+        if (strcmp(objCType, @encode(BOOL)) == 0) {
+            sqlite3_bind_int(pStmt, idx, ([obj boolValue] ? 1 : 0));
+        }
+        else if (strcmp(objCType, @encode(int)) == 0) {
+            sqlite3_bind_int64(pStmt, idx, [obj longValue]);
+        }
+        else if (strcmp(objCType, @encode(long)) == 0) {
+            sqlite3_bind_int64(pStmt, idx, [obj longValue]);
+        }
+        else if (strcmp(objCType, @encode(long long)) == 0) {
+            sqlite3_bind_int64(pStmt, idx, [obj longLongValue]);
+        }
+        else if (strcmp(objCType, @encode(float)) == 0) {
+            sqlite3_bind_double(pStmt, idx, [obj floatValue]);
+        }
+        else if (strcmp(objCType, @encode(double)) == 0) {
+            sqlite3_bind_double(pStmt, idx, [obj doubleValue]);
+        }
+        else {
+            bindNSString(pStmt, idx, [obj description]);
+        }
+    }
+    else if ([obj isKindOfClass:[NSString class]]) {
+        bindNSString(pStmt, idx, obj);
+    }
     else if ([obj isKindOfClass:[NSData class]]) {
         const void* bytes = [obj bytes];
         if (bytes) {
@@ -341,29 +370,8 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     else if ([obj isKindOfClass:[NSDate class]]) {
         sqlite3_bind_double(pStmt, idx, [obj timeIntervalSince1970]);
     }
-    else if ([obj isKindOfClass:[NSNumber class]]) {
-        
-        if (strcmp([obj objCType], @encode(BOOL)) == 0) {
-            sqlite3_bind_int(pStmt, idx, ([obj boolValue] ? 1 : 0));
-        }
-        else if (strcmp([obj objCType], @encode(int)) == 0) {
-            sqlite3_bind_int64(pStmt, idx, [obj longValue]);
-        }
-        else if (strcmp([obj objCType], @encode(long)) == 0) {
-            sqlite3_bind_int64(pStmt, idx, [obj longValue]);
-        }
-        else if (strcmp([obj objCType], @encode(long long)) == 0) {
-            sqlite3_bind_int64(pStmt, idx, [obj longLongValue]);
-        }
-        else if (strcmp([obj objCType], @encode(float)) == 0) {
-            sqlite3_bind_double(pStmt, idx, [obj floatValue]);
-        }
-        else if (strcmp([obj objCType], @encode(double)) == 0) {
-            sqlite3_bind_double(pStmt, idx, [obj doubleValue]);
-        }
-        else {
-            bindNSString(pStmt, idx, [obj description]);
-        }
+    else if ((!obj) || ((NSNull *)obj == [NSNull null])) {
+        sqlite3_bind_null(pStmt, idx);
     }
     else {
         bindNSString(pStmt, idx, [obj description]);
