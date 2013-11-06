@@ -124,7 +124,7 @@
     
     int rc;
     BOOL retry;
-    int numberOfRetries = 0;
+    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
     do {
         retry = NO;
         
@@ -132,7 +132,7 @@
         
         if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
             // this will happen if the db is locked, like if we are doing an update or insert.
-            // in that case, retry the step... and maybe wait just 10 milliseconds.
+            // in that case, retry the step after a brief delay.
             retry = YES;
             if (SQLITE_LOCKED == rc) {
                 rc = sqlite3_reset(statement.statement);
@@ -140,9 +140,8 @@
                     NSLog(@"Unexpected result from sqlite3_reset (%d) rs", rc);
                 }
             }
-            usleep(20);
-            
-            if ([parentDB busyRetryTimeout] && (numberOfRetries++ > [parentDB busyRetryTimeout])) {
+
+            if (![parentDB shouldRetrySince: startTime]) {
                 
                 NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [parentDB databasePath]);
                 NSLog(@"Database busy");

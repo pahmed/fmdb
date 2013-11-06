@@ -10,7 +10,12 @@
 @synthesize checkedOut;
 @synthesize traceExecution;
 
+// If nonzero, every newly-compiled query will have its query plan explained to the console.
+// This is obviously for development use only!
 #define EXPLAIN_EVERYTHING 0
+
+// Number of _microseconds_ to wait between attempts to retry a query when the db is busy/locked.
+#define RETRY_DELAY_MICROSEC 20000
 
 + (id)databaseWithPath:(NSString*)aPath {
     return [[[self alloc] initWithPath:aPath] autorelease];
@@ -25,7 +30,7 @@
         db                  = 0x00;
         logsErrors          = 0x00;
         crashOnErrors       = 0x00;
-        busyRetryTimeout    = 0x00;
+        busyRetryTimeout    = 0.0;
     }
     
     return self;
@@ -57,6 +62,15 @@
 - (sqlite3*)sqliteHandle {
     return db;
 }
+
+- (BOOL) shouldRetrySince: (CFAbsoluteTime)timestamp {
+    if (busyRetryTimeout > 0 && CFAbsoluteTimeGetCurrent() < timestamp + busyRetryTimeout) {
+        usleep(RETRY_DELAY_MICROSEC);
+        return YES;
+    }
+    return NO;
+}
+
 
 - (BOOL)open {
     if (db) {
@@ -103,7 +117,7 @@
     
     int  rc;
     BOOL retry;
-    int numberOfRetries = 0;
+    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
     BOOL triedFinalizingOpenStatements = NO;
     
     do {
@@ -111,8 +125,7 @@
         rc      = sqlite3_close(db);
         if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
             retry = YES;
-            usleep(20);
-            if (busyRetryTimeout && (numberOfRetries++ > busyRetryTimeout)) {
+            if (![self shouldRetrySince: startTime]) {
                 NSLog(@"%s:%d", __FUNCTION__, __LINE__);
                 NSLog(@"Database busy, unable to close");
                 return NO;
@@ -521,7 +534,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         pStmt = statement ? [statement statement] : 0x00;
     }
     
-    int numberOfRetries = 0;
+    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
     BOOL retry          = NO;
     
     if (!pStmt) {
@@ -536,9 +549,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
             if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
                 retry = YES;
-                usleep(20);
-                
-                if (busyRetryTimeout && (numberOfRetries++ > busyRetryTimeout)) {
+                if (![self shouldRetrySince: startTime]) {
                     NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
                     NSLog(@"Database busy");
                     sqlite3_finalize(pStmt);
@@ -684,7 +695,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         pStmt = cachedStmt ? [cachedStmt statement] : 0x00;
     }
     
-    int numberOfRetries = 0;
+    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
     BOOL retry          = NO;
     
     if (!pStmt) {
@@ -694,9 +705,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
             rc      = sqlite3_prepare_v2(db, [sql UTF8String], -1, &pStmt, 0);
             if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
                 retry = YES;
-                usleep(20);
-                
-                if (busyRetryTimeout && (numberOfRetries++ > busyRetryTimeout)) {
+                if (![self shouldRetrySince: startTime]) {
                     NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
                     NSLog(@"Database busy");
                     sqlite3_finalize(pStmt);
@@ -772,7 +781,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     /* Call sqlite3_step() to run the virtual machine. Since the SQL being
      ** executed is not a SELECT statement, we assume no data will be returned.
      */
-    numberOfRetries = 0;
+    startTime = CFAbsoluteTimeGetCurrent();
     do {
         if (enforceReadOnly && !sqlite3_stmt_readonly(pStmt)) {
             //FIX: Somehow set sqlite3_errcode to SQLITE_READONLY so clients see it!
@@ -784,7 +793,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         
         if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
             // this will happen if the db is locked, like if we are doing an update or insert.
-            // in that case, retry the step... and maybe wait just 10 milliseconds.
+            // in that case, retry the step after a brief delay.
             retry = YES;
             if (SQLITE_LOCKED == rc) {
                 rc = sqlite3_reset(pStmt);
@@ -792,9 +801,8 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
                     NSLog(@"Unexpected result from sqlite3_reset (%d) eu", rc);
                 }
             }
-            usleep(20);
-            
-            if (busyRetryTimeout && (numberOfRetries++ > busyRetryTimeout)) {
+
+            if (![self shouldRetrySince: startTime]) {
                 NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
                 NSLog(@"Database busy");
                 retry = NO;

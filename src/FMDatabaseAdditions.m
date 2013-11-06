@@ -121,8 +121,8 @@ return ret;
     sqlite3_stmt *pStmt = NULL;
     BOOL validationSucceeded = YES;
     BOOL keepTrying = YES;
-    int numberOfRetries = 0;
-    
+    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
+
     [self setInUse:YES];
     while (keepTrying == YES) {
         keepTrying = NO;
@@ -131,7 +131,7 @@ return ret;
             keepTrying = YES;
             usleep(20);
             
-            if (busyRetryTimeout && (numberOfRetries++ > busyRetryTimeout)) {
+            if (![self shouldRetrySince: startTime]) {
                 NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
                 NSLog(@"Database busy");
             }          

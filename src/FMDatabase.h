@@ -12,7 +12,7 @@
     BOOL        inTransaction;
     BOOL        traceExecution;
     BOOL        checkedOut;
-    int         busyRetryTimeout;
+    NSTimeInterval busyRetryTimeout;
     BOOL        shouldCacheStatements;
     BOOL        enforceReadOnly;
     NSMutableDictionary *cachedStatements;
@@ -23,7 +23,7 @@
 @property (assign) BOOL inTransaction;
 @property (assign) BOOL traceExecution;
 @property (assign) BOOL checkedOut;
-@property (assign) int busyRetryTimeout;
+@property (assign) NSTimeInterval busyRetryTimeout;     // changed to a time interval, not a count!
 @property (assign) BOOL crashOnErrors;
 @property (assign) BOOL logsErrors;
 @property (retain) NSMutableDictionary *cachedStatements;
@@ -83,6 +83,9 @@
 + (NSString*)sqliteLibVersion;
 
 - (int)changes;
+
+// internal
+- (BOOL) shouldRetrySince: (CFAbsoluteTime)timestamp;
 
 @end
 
