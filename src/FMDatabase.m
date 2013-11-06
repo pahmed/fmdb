@@ -74,6 +74,14 @@
 
 #if SQLITE_VERSION_NUMBER >= 3005000
 - (BOOL)openWithFlags:(int)flags {
+    if ((flags & SQLITE_OPEN_SHAREDCACHE) && (flags & SQLITE_OPEN_READONLY)) {
+        // Multiple shared-cache connections to a db file all seem to inherit the writeability of
+        // the first connection, meaning that the READONLY flag doesn't work properly. So I'll need
+        // to manage the read-only checks myself.
+        flags &= ~SQLITE_OPEN_READONLY;
+        flags |= SQLITE_OPEN_READWRITE;
+        enforceReadOnly = YES;
+    }
     int err = sqlite3_open_v2((databasePath ? [databasePath fileSystemRepresentation] : ":memory:"), &db, flags, NULL /* Name of VFS module to use */);
     if(err != SQLITE_OK) {
         NSLog(@"error opening!: %d", err);
@@ -520,7 +528,12 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         do {
             retry   = NO;
             rc      = sqlite3_prepare_v2(db, [sql UTF8String], -1, &pStmt, 0);
-            
+
+            if (enforceReadOnly && SQLITE_OK == rc && !sqlite3_stmt_readonly(pStmt)) {
+                //FIX: Somehow set sqlite3_errcode to SQLITE_READONLY so clients see it!
+                rc = SQLITE_READONLY;
+            }
+
             if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
                 retry = YES;
                 usleep(20);
@@ -761,7 +774,12 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
      */
     numberOfRetries = 0;
     do {
-        rc      = sqlite3_step(pStmt);
+        if (enforceReadOnly && !sqlite3_stmt_readonly(pStmt)) {
+            //FIX: Somehow set sqlite3_errcode to SQLITE_READONLY so clients see it!
+            rc = SQLITE_READONLY;
+        } else {
+            rc = sqlite3_step(pStmt);
+        }
         retry   = NO;
         
         if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {

@@ -14,6 +14,7 @@
     BOOL        checkedOut;
     int         busyRetryTimeout;
     BOOL        shouldCacheStatements;
+    BOOL        enforceReadOnly;
     NSMutableDictionary *cachedStatements;
 	NSMutableSet *openResultSets;
 }
