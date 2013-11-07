@@ -1,7 +1,7 @@
 #import "FMDatabase.h"
 #import "unistd.h"
 
-@implementation FMDatabase
+@implementation CBL_FMDatabase
 @synthesize inTransaction;
 @synthesize cachedStatements;
 @synthesize logsErrors;
@@ -156,7 +156,7 @@
 - (void)clearCachedStatements {
     
     NSEnumerator *e = [cachedStatements objectEnumerator];
-    FMStatement *cachedStmt;
+    CBL_FMStatement *cachedStmt;
 
     while ((cachedStmt = [e nextObject])) {
         [cachedStmt close];
@@ -173,14 +173,14 @@
     NSValue *returnedResultSet = nil;
     
     while((returnedResultSet = [e nextObject])) {
-        FMResultSet *rs = (FMResultSet *)[returnedResultSet pointerValue];
+        CBL_FMResultSet *rs = (CBL_FMResultSet *)[returnedResultSet pointerValue];
         if ([rs respondsToSelector:@selector(close)]) {
             [rs close];
         }
     }
 }
 
-- (void)resultSetDidClose:(FMResultSet *)resultSet {
+- (void)resultSetDidClose:(CBL_FMResultSet *)resultSet {
     NSValue *setValue = [NSValue valueWithNonretainedObject:resultSet];
     [openResultSets removeObject:setValue];
 }
@@ -194,17 +194,17 @@
         return nil;
     NSMutableArray* queries = [NSMutableArray array];
     for (NSValue* setValue in openResultSets) {
-        FMResultSet* resultSet = (FMResultSet*) [setValue pointerValue];
+        CBL_FMResultSet* resultSet = (CBL_FMResultSet*) [setValue pointerValue];
         [queries addObject: [resultSet query]];
     }
     return queries;
 }
 
-- (FMStatement*)cachedStatementForQuery:(NSString*)query {
+- (CBL_FMStatement*)cachedStatementForQuery:(NSString*)query {
     return [cachedStatements objectForKey:query];
 }
 
-- (void)setCachedStatement:(FMStatement*)statement forQuery:(NSString*)query {
+- (void)setCachedStatement:(CBL_FMStatement*)statement forQuery:(NSString*)query {
     query = [query copy]; // in case we got handed in a mutable string...
     [statement setQuery:query];
     [cachedStatements setObject:statement forKey:query];
@@ -507,7 +507,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 }
 #endif // ENABLE_FORMATTED_QUERY
 
-- (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args {
+- (CBL_FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args {
     
     if (![self databaseExists]) {
         return 0x00;
@@ -520,11 +520,11 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     
     [self setInUse:YES];
     
-    FMResultSet *rs = nil;
+    CBL_FMResultSet *rs = nil;
     
     int rc                  = 0x00;
     sqlite3_stmt *pStmt     = 0x00;
-    FMStatement *statement  = 0x00;
+    CBL_FMStatement *statement  = 0x00;
     
     if (traceExecution && sql) {
         NSLog(@"%@ executeQuery: %@", self, sql);
@@ -601,7 +601,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     [statement retain]; // to balance the release below
     
     if (!statement) {
-        statement = [[FMStatement alloc] init];
+        statement = [[CBL_FMStatement alloc] init];
         [statement setStatement:pStmt];
         
         if (shouldCacheStatements) {
@@ -610,7 +610,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
     
     // the statement gets closed in rs's dealloc or [rs close];
-    rs = [FMResultSet resultSetWithStatement:statement usingParentDatabase:self];
+    rs = [CBL_FMResultSet resultSetWithStatement:statement usingParentDatabase:self];
     [rs setQuery:sql];
     NSValue *openResultSet = [NSValue valueWithNonretainedObject:rs];
     [openResultSets addObject:openResultSet];
@@ -624,7 +624,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     return rs;
 }
 
-- (FMResultSet *)executeQuery:(NSString*)sql, ... {
+- (CBL_FMResultSet *)executeQuery:(NSString*)sql, ... {
     va_list args;
     va_start(args, sql);
     
@@ -649,7 +649,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 }
 #endif // ENABLE_FORMATTED_QUERY
 
-- (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray *)arguments {
+- (CBL_FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray *)arguments {
     return [self executeQuery:sql withArgumentsInArray:arguments orVAList:NULL];
 }
 
@@ -668,7 +668,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     
     int rc                   = 0x00;
     sqlite3_stmt *pStmt      = 0x00;
-    FMStatement *cachedStmt  = 0x00;
+    CBL_FMStatement *cachedStmt  = 0x00;
     
     if (traceExecution && sql) {
         NSLog(@"%@ executeUpdate: %@", self, sql);
@@ -782,7 +782,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
     
     if (shouldCacheStatements && !cachedStmt) {
-        cachedStmt = [[FMStatement alloc] init];
+        cachedStmt = [[CBL_FMStatement alloc] init];
         
         [cachedStmt setStatement:pStmt];
         
@@ -926,7 +926,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
 
 
-@implementation FMStatement
+@implementation CBL_FMStatement
 @synthesize statement;
 @synthesize query;
 @synthesize useCount;

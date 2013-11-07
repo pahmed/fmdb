@@ -7,7 +7,7 @@
 //
 
 #import <Foundation/Foundation.h>
-@interface FMDatabase (FMDatabaseAdditions)
+@interface CBL_FMDatabase (FMDatabaseAdditions)
 
 
 - (int)intForQuery:(NSString*)objs, ...;
@@ -25,8 +25,8 @@
 - (long)longForQuery:(NSString*)objs, ...; 
 - (NSDate*)dateForQuery:(NSString*)objs, ...;
 - (BOOL)tableExists:(NSString*)tableName;
-- (FMResultSet*)getSchema;
-- (FMResultSet*)getTableSchema:(NSString*)tableName;
+- (CBL_FMResultSet*)getSchema;
+- (CBL_FMResultSet*)getTableSchema:(NSString*)tableName;
 - (BOOL)columnExists:(NSString*)tableName columnName:(NSString*)columnName;
 
 - (BOOL)validateSQL:(NSString*)sql error:(NSError**)error;

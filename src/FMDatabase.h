@@ -2,7 +2,7 @@
 #import "sqlite3.h"
 #import "FMResultSet.h"
 
-@interface FMDatabase : NSObject 
+@interface CBL_FMDatabase : NSObject 
 {
 	sqlite3*    db;
 	NSString*   databasePath;
@@ -69,12 +69,12 @@
 - (BOOL)executeUpdate:(NSString*)sql withArgumentsInArray:(NSArray *)arguments;
 - (BOOL)executeUpdate:(NSString*)sql error:(NSError**)outErr withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args; // you shouldn't ever need to call this.  use the previous two instead.
 
-- (FMResultSet *)executeQuery:(NSString*)sql, ...;
+- (CBL_FMResultSet *)executeQuery:(NSString*)sql, ...;
 #ifdef ENABLE_FORMATTED_QUERY
 - (FMResultSet *)executeQueryWithFormat:(NSString*)format, ...;
 #endif
-- (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray *)arguments;
-- (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args; // you shouldn't ever need to call this.  use the previous two instead.
+- (CBL_FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray *)arguments;
+- (CBL_FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args; // you shouldn't ever need to call this.  use the previous two instead.
 
 #if 0
 - (BOOL)rollback;
@@ -97,7 +97,7 @@
 
 @end
 
-@interface FMStatement : NSObject {
+@interface CBL_FMStatement : NSObject {
     sqlite3_stmt *statement;
     NSString *query;
     long useCount;

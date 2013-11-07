@@ -2,24 +2,24 @@
 #import "FMDatabase.h"
 #import "unistd.h"
 
-@interface FMDatabase ()
-- (void)resultSetDidClose:(FMResultSet *)resultSet;
+@interface CBL_FMDatabase ()
+- (void)resultSetDidClose:(CBL_FMResultSet *)resultSet;
 @end
 
 
-@interface FMResultSet (Private)
+@interface CBL_FMResultSet (Private)
 - (NSMutableDictionary *)columnNameToIndexMap;
 - (void)setColumnNameToIndexMap:(NSMutableDictionary *)value;
 @end
 
-@implementation FMResultSet
+@implementation CBL_FMResultSet
 @synthesize query;
 @synthesize columnNameToIndexMap;
 @synthesize statement;
 
-+ (id)resultSetWithStatement:(FMStatement *)statement usingParentDatabase:(FMDatabase*)aDB {
++ (id)resultSetWithStatement:(CBL_FMStatement *)statement usingParentDatabase:(CBL_FMDatabase*)aDB {
     
-    FMResultSet *rs = [[FMResultSet alloc] init];
+    CBL_FMResultSet *rs = [[CBL_FMResultSet alloc] init];
     
     [rs setStatement:statement];
     [rs setParentDB:aDB];
@@ -344,7 +344,7 @@
     return [NSString stringWithUTF8String: sqlite3_column_name(statement.statement, columnIdx)];
 }
 
-- (void)setParentDB:(FMDatabase *)newDb {
+- (void)setParentDB:(CBL_FMDatabase *)newDb {
     parentDB = newDb;
 }
 
