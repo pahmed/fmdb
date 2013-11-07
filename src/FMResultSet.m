@@ -259,14 +259,9 @@
     if (sqlite3_column_type(statement.statement, columnIdx) == SQLITE_NULL || (columnIdx < 0)) {
         return nil;
     }
-    
-    int dataSize = sqlite3_column_bytes(statement.statement, columnIdx);
-    
-    NSMutableData *data = [NSMutableData dataWithLength:dataSize];
-    
-    memcpy([data mutableBytes], sqlite3_column_blob(statement.statement, columnIdx), dataSize);
-    
-    return data;
+    const void* bytes = sqlite3_column_blob(statement.statement, columnIdx);
+    return [NSData dataWithBytes:bytes
+                          length:sqlite3_column_bytes(statement.statement, columnIdx)];
 }
 
 
@@ -279,12 +274,10 @@
     if (sqlite3_column_type(statement.statement, columnIdx) == SQLITE_NULL || (columnIdx < 0)) {
         return nil;
     }
-    
-    int dataSize = sqlite3_column_bytes(statement.statement, columnIdx);
-    
-    NSData *data = [NSData dataWithBytesNoCopy:(void *)sqlite3_column_blob(statement.statement, columnIdx) length:dataSize freeWhenDone:NO];
-    
-    return data;
+    const void* bytes = sqlite3_column_blob(statement.statement, columnIdx);
+    return [NSData dataWithBytesNoCopy:(void*)bytes
+                                length:sqlite3_column_bytes(statement.statement, columnIdx)
+                          freeWhenDone:NO];
 }
 
 
