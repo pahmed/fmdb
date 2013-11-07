@@ -84,9 +84,6 @@
 
 - (int)changes;
 
-// internal
-- (BOOL) shouldRetrySince: (CFAbsoluteTime)timestamp;
-
 @end
 
 @interface FMStatement : NSObject {

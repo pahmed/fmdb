@@ -63,15 +63,6 @@
     return db;
 }
 
-- (BOOL) shouldRetrySince: (CFAbsoluteTime)timestamp {
-    if (busyRetryTimeout > 0 && CFAbsoluteTimeGetCurrent() < timestamp + busyRetryTimeout) {
-        usleep(RETRY_DELAY_MICROSEC);
-        return YES;
-    }
-    return NO;
-}
-
-
 - (BOOL)open {
     if (db) {
         return YES;
@@ -81,6 +72,9 @@
     if(err != SQLITE_OK) {
         NSLog(@"error opening!: %d", err);
         return NO;
+    }
+    if (busyRetryTimeout > 0.0) {
+        sqlite3_busy_timeout(db, (int)(busyRetryTimeout * 1000));
     }
     
     return YES;
@@ -101,6 +95,9 @@
         NSLog(@"error opening!: %d", err);
         return NO;
     }
+    if (busyRetryTimeout > 0.0) {
+        sqlite3_busy_timeout(db, (int)(busyRetryTimeout * 1000));
+    }
     return YES;
 }
 #endif
@@ -117,26 +114,19 @@
     
     int  rc;
     BOOL retry;
-    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
     BOOL triedFinalizingOpenStatements = NO;
     
     do {
         retry   = NO;
         rc      = sqlite3_close(db);
         if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
-            retry = YES;
-            if (![self shouldRetrySince: startTime]) {
-                NSLog(@"%s:%d", __FUNCTION__, __LINE__);
-                NSLog(@"Database busy, unable to close");
-                return NO;
-            }
-            
             if (!triedFinalizingOpenStatements) {
                 triedFinalizingOpenStatements = YES;
                 sqlite3_stmt *pStmt;
                 while ((pStmt = sqlite3_next_stmt(db, 0x00)) !=0) {
                     NSLog(@"Closing leaked statement");
                     sqlite3_finalize(pStmt);
+                    retry = YES;
                 }
             }
         }
@@ -148,6 +138,17 @@
     
     db = NULL;
     return YES;
+}
+
+- (void) setBusyRetryTimeout:(NSTimeInterval)timeout {
+    busyRetryTimeout = timeout;
+    if (db) {
+        sqlite3_busy_timeout(db, (int)(timeout * 1000));
+    }
+}
+
+- (NSTimeInterval) busyRetryTimeout {
+    return busyRetryTimeout;
 }
 
 - (void)clearCachedStatements {
@@ -533,50 +534,31 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         statement = [self cachedStatementForQuery:sql];
         pStmt = statement ? [statement statement] : 0x00;
     }
-    
-    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
-    BOOL retry          = NO;
-    
+
     if (!pStmt) {
-        do {
-            retry   = NO;
-            rc      = sqlite3_prepare_v2(db, [sql UTF8String], -1, &pStmt, 0);
+        rc = sqlite3_prepare_v2(db, [sql UTF8String], -1, &pStmt, 0);
 
-            if (enforceReadOnly && SQLITE_OK == rc && !sqlite3_stmt_readonly(pStmt)) {
-                //FIX: Somehow set sqlite3_errcode to SQLITE_READONLY so clients see it!
-                rc = SQLITE_READONLY;
-            }
-
-            if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
-                retry = YES;
-                if (![self shouldRetrySince: startTime]) {
-                    NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
-                    NSLog(@"Database busy");
-                    sqlite3_finalize(pStmt);
-                    [self setInUse:NO];
-                    return nil;
-                }
-            }
-            else if (SQLITE_OK != rc) {
-                
-                
-                if (logsErrors) {
-                    NSLog(@"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
-                    NSLog(@"DB Query: %@", sql);
-#ifndef NS_BLOCK_ASSERTIONS
-                    if (crashOnErrors) {
-                        NSAssert2(false, @"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
-                    }
-#endif
-                }
-                
-                sqlite3_finalize(pStmt);
-                
-                [self setInUse:NO];
-                return nil;
-            }
+        if (enforceReadOnly && SQLITE_OK == rc && !sqlite3_stmt_readonly(pStmt)) {
+            //FIX: Somehow set sqlite3_errcode to SQLITE_READONLY so clients see it!
+            rc = SQLITE_READONLY;
         }
-        while (retry);
+
+        else if (SQLITE_OK != rc) {
+            if (logsErrors) {
+                NSLog(@"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
+                NSLog(@"DB Query: %@", sql);
+#ifndef NS_BLOCK_ASSERTIONS
+                if (crashOnErrors) {
+                    NSAssert2(false, @"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
+                }
+#endif
+            }
+            
+            sqlite3_finalize(pStmt);
+            
+            [self setInUse:NO];
+            return nil;
+        }
 
 #if EXPLAIN_EVERYTHING
         if (shouldCacheStatements && pStmt) {
@@ -694,49 +676,30 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         cachedStmt = [self cachedStatementForQuery:sql];
         pStmt = cachedStmt ? [cachedStmt statement] : 0x00;
     }
-    
-    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
-    BOOL retry          = NO;
-    
+
     if (!pStmt) {
         
-        do {
-            retry   = NO;
-            rc      = sqlite3_prepare_v2(db, [sql UTF8String], -1, &pStmt, 0);
-            if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
-                retry = YES;
-                if (![self shouldRetrySince: startTime]) {
-                    NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
-                    NSLog(@"Database busy");
-                    sqlite3_finalize(pStmt);
-                    [self setInUse:NO];
-                    return NO;
-                }
-            }
-            else if (SQLITE_OK != rc) {
-                
-                
-                if (logsErrors) {
-                    NSLog(@"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
-                    NSLog(@"DB Query: %@", sql);
+        rc      = sqlite3_prepare_v2(db, [sql UTF8String], -1, &pStmt, 0);
+        if (SQLITE_OK != rc) {
+            if (logsErrors) {
+                NSLog(@"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
+                NSLog(@"DB Query: %@", sql);
 #ifndef NS_BLOCK_ASSERTIONS
-                    if (crashOnErrors) {
-                        NSAssert2(false, @"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
-                    }
+                if (crashOnErrors) {
+                    NSAssert2(false, @"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
+                }
 #endif
-                }
-                
-                sqlite3_finalize(pStmt);
-                [self setInUse:NO];
-                
-                if (outErr) {
-                    *outErr = [NSError errorWithDomain:[NSString stringWithUTF8String:sqlite3_errmsg(db)] code:rc userInfo:nil];
-                }
-                
-                return NO;
             }
+            
+            sqlite3_finalize(pStmt);
+            [self setInUse:NO];
+            
+            if (outErr) {
+                *outErr = [NSError errorWithDomain:[NSString stringWithUTF8String:sqlite3_errmsg(db)] code:rc userInfo:nil];
+            }
+            
+            return NO;
         }
-        while (retry);
 
 #if EXPLAIN_EVERYTHING
         if (shouldCacheStatements && pStmt) {
@@ -781,58 +744,40 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     /* Call sqlite3_step() to run the virtual machine. Since the SQL being
      ** executed is not a SELECT statement, we assume no data will be returned.
      */
-    startTime = CFAbsoluteTimeGetCurrent();
-    do {
-        if (enforceReadOnly && !sqlite3_stmt_readonly(pStmt)) {
-            //FIX: Somehow set sqlite3_errcode to SQLITE_READONLY so clients see it!
-            rc = SQLITE_READONLY;
-        } else {
-            rc = sqlite3_step(pStmt);
-        }
-        retry   = NO;
-        
-        if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
-            // this will happen if the db is locked, like if we are doing an update or insert.
-            // in that case, retry the step after a brief delay.
-            retry = YES;
-            if (SQLITE_LOCKED == rc) {
-                rc = sqlite3_reset(pStmt);
-                if (rc != SQLITE_LOCKED) {
-                    NSLog(@"Unexpected result from sqlite3_reset (%d) eu", rc);
-                }
-            }
+    if (enforceReadOnly && !sqlite3_stmt_readonly(pStmt)) {
+        //FIX: Somehow set sqlite3_errcode to SQLITE_READONLY so clients see it!
+        rc = SQLITE_READONLY;
+    } else {
+        rc = sqlite3_step(pStmt);
+    }
 
-            if (![self shouldRetrySince: startTime]) {
-                NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
-                NSLog(@"Database busy");
-                retry = NO;
-            }
-        }
-        else if (SQLITE_DONE == rc || SQLITE_ROW == rc) {
-            // all is well, let's return.
-            rc = SQLITE_OK;
-        }
-        else if (SQLITE_CONSTRAINT == rc) {
-            // Constraint violation; not ok, but no need to log about it.
-        }
-        else if (SQLITE_ERROR == rc) {
-            rc = sqlite3_reset(pStmt);  // Get the real error code & message
-            NSLog(@"Error calling sqlite3_step (%d: %s) SQLITE_ERROR", rc, sqlite3_errmsg(db));
-            NSLog(@"DB Query: %@", sql);
-        }
-        else if (SQLITE_MISUSE == rc) {
-            // uh oh.
-            NSLog(@"Error calling sqlite3_step (%d: %s) SQLITE_MISUSE", rc, sqlite3_errmsg(db));
-            NSLog(@"DB Query: %@", sql);
-        }
-        else {
-            // wtf?
-            NSLog(@"Unknown error calling sqlite3_step (%d: %s) eu", rc, sqlite3_errmsg(db));
-            NSLog(@"DB Query: %@", sql);
-        }
-        
-    } while (retry);
-    
+    if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
+        NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
+        NSLog(@"Database busy");
+    }
+    else if (SQLITE_DONE == rc || SQLITE_ROW == rc) {
+        // all is well, let's return.
+        rc = SQLITE_OK;
+    }
+    else if (SQLITE_CONSTRAINT == rc) {
+        // Constraint violation; not ok, but no need to log about it.
+    }
+    else if (SQLITE_ERROR == rc) {
+        rc = sqlite3_reset(pStmt);  // Get the real error code & message
+        NSLog(@"Error calling sqlite3_step (%d: %s) SQLITE_ERROR", rc, sqlite3_errmsg(db));
+        NSLog(@"DB Query: %@", sql);
+    }
+    else if (SQLITE_MISUSE == rc) {
+        // uh oh.
+        NSLog(@"Error calling sqlite3_step (%d: %s) SQLITE_MISUSE", rc, sqlite3_errmsg(db));
+        NSLog(@"DB Query: %@", sql);
+    }
+    else {
+        // wtf?
+        NSLog(@"Unknown error calling sqlite3_step (%d: %s) eu", rc, sqlite3_errmsg(db));
+        NSLog(@"DB Query: %@", sql);
+    }
+
     
     if (shouldCacheStatements && !cachedStmt) {
         cachedStmt = [[FMStatement alloc] init];

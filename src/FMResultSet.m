@@ -122,52 +122,27 @@
 
 - (BOOL)next {
     
-    int rc;
-    BOOL retry;
-    CFAbsoluteTime startTime = CFAbsoluteTimeGetCurrent();
-    do {
-        retry = NO;
-        
-        rc = sqlite3_step(statement.statement);
-        
-        if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
-            // this will happen if the db is locked, like if we are doing an update or insert.
-            // in that case, retry the step after a brief delay.
-            retry = YES;
-            if (SQLITE_LOCKED == rc) {
-                rc = sqlite3_reset(statement.statement);
-                if (rc != SQLITE_LOCKED) {
-                    NSLog(@"Unexpected result from sqlite3_reset (%d) rs", rc);
-                }
-            }
-
-            if (![parentDB shouldRetrySince: startTime]) {
-                
-                NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [parentDB databasePath]);
-                NSLog(@"Database busy");
-                break;
-            }
-        }
-        else if (SQLITE_DONE == rc || SQLITE_ROW == rc) {
-            // all is well, let's return.
-        }
-        else if (SQLITE_ERROR == rc) {
-            NSLog(@"Error calling sqlite3_step (%d: %s) rs", rc, sqlite3_errmsg([parentDB sqliteHandle]));
-            break;
-        } 
-        else if (SQLITE_MISUSE == rc) {
-            // uh oh.
-            NSLog(@"Error calling sqlite3_step (%d: %s) rs", rc, sqlite3_errmsg([parentDB sqliteHandle]));
-            break;
-        }
-        else {
-            // wtf?
-            NSLog(@"Unknown error calling sqlite3_step (%d: %s) rs", rc, sqlite3_errmsg([parentDB sqliteHandle]));
-            break;
-        }
-        
-    } while (retry);
+    int rc = sqlite3_step(statement.statement);
     
+    if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
+        NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [parentDB databasePath]);
+        NSLog(@"Database busy");
+    }
+    else if (SQLITE_DONE == rc || SQLITE_ROW == rc) {
+        // all is well, let's return.
+    }
+    else if (SQLITE_ERROR == rc) {
+        NSLog(@"Error calling sqlite3_step (%d: %s) rs", rc, sqlite3_errmsg([parentDB sqliteHandle]));
+    }
+    else if (SQLITE_MISUSE == rc) {
+        // uh oh.
+        NSLog(@"Error calling sqlite3_step (%d: %s) rs", rc, sqlite3_errmsg([parentDB sqliteHandle]));
+    }
+    else {
+        // wtf?
+        NSLog(@"Unknown error calling sqlite3_step (%d: %s) rs", rc, sqlite3_errmsg([parentDB sqliteHandle]));
+    }
+
     
     if (rc != SQLITE_ROW) {
         [self close];
