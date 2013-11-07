@@ -55,10 +55,6 @@
     parentDB = nil;
 }
 
-- (int)columnCount {
-	return sqlite3_column_count(statement.statement);
-}
-
 - (void)setupColumnNames {
     
     if (!columnNameToIndexMap) {
@@ -73,6 +69,11 @@
                                  forKey:[[NSString stringWithUTF8String:sqlite3_column_name(statement.statement, columnIdx)] lowercaseString]];
     }
     columnNamesSetup = YES;
+}
+
+#if 0
+- (int)columnCount {
+	return sqlite3_column_count(statement.statement);
 }
 
 - (void)kvcMagic:(id)object {
@@ -119,6 +120,7 @@
     
     return nil;
 }
+#endif
 
 - (BOOL)next {
     
@@ -175,25 +177,48 @@
 }
 
 
-
+#if 0 // unused in Couchbase Lite --jens
 - (int)intForColumn:(NSString*)columnName {
     return [self intForColumnIndex:[self columnIndexForName:columnName]];
-}
-
-- (int)intForColumnIndex:(int)columnIdx {
-    return sqlite3_column_int(statement.statement, columnIdx);
 }
 
 - (long)longForColumn:(NSString*)columnName {
     return [self longForColumnIndex:[self columnIndexForName:columnName]];
 }
 
-- (long)longForColumnIndex:(int)columnIdx {
-    return (long)sqlite3_column_int64(statement.statement, columnIdx);
-}
-
 - (long long int)longLongIntForColumn:(NSString*)columnName {
     return [self longLongIntForColumnIndex:[self columnIndexForName:columnName]];
+}
+
+- (NSString*)stringForColumn:(NSString*)columnName {
+    return [self stringForColumnIndex:[self columnIndexForName:columnName]];
+}
+
+- (NSDate*)dateForColumn:(NSString*)columnName {
+    return [self dateForColumnIndex:[self columnIndexForName:columnName]];
+}
+
+- (NSDate*)dateForColumnIndex:(int)columnIdx {
+
+    if (sqlite3_column_type(statement.statement, columnIdx) == SQLITE_NULL || (columnIdx < 0)) {
+        return nil;
+    }
+
+    return [NSDate dateWithTimeIntervalSince1970:[self doubleForColumnIndex:columnIdx]];
+}
+
+- (NSData*)dataNoCopyForColumn:(NSString*)columnName {
+    return [self dataNoCopyForColumnIndex:[self columnIndexForName:columnName]];
+}
+
+#endif
+
+- (int)intForColumnIndex:(int)columnIdx {
+    return sqlite3_column_int(statement.statement, columnIdx);
+}
+
+- (long)longForColumnIndex:(int)columnIdx {
+    return (long)sqlite3_column_int64(statement.statement, columnIdx);
 }
 
 - (long long int)longLongIntForColumnIndex:(int)columnIdx {
@@ -232,23 +257,6 @@
     return [NSString stringWithUTF8String:c];
 }
 
-- (NSString*)stringForColumn:(NSString*)columnName {
-    return [self stringForColumnIndex:[self columnIndexForName:columnName]];
-}
-
-- (NSDate*)dateForColumn:(NSString*)columnName {
-    return [self dateForColumnIndex:[self columnIndexForName:columnName]];
-}
-
-- (NSDate*)dateForColumnIndex:(int)columnIdx {
-    
-    if (sqlite3_column_type(statement.statement, columnIdx) == SQLITE_NULL || (columnIdx < 0)) {
-        return nil;
-    }
-    
-    return [NSDate dateWithTimeIntervalSince1970:[self doubleForColumnIndex:columnIdx]];
-}
-
 
 - (NSData*)dataForColumn:(NSString*)columnName {
     return [self dataForColumnIndex:[self columnIndexForName:columnName]];
@@ -265,10 +273,6 @@
 }
 
 
-- (NSData*)dataNoCopyForColumn:(NSString*)columnName {
-    return [self dataNoCopyForColumnIndex:[self columnIndexForName:columnName]];
-}
-
 - (NSData*)dataNoCopyForColumnIndex:(int)columnIdx {
     
     if (sqlite3_column_type(statement.statement, columnIdx) == SQLITE_NULL || (columnIdx < 0)) {
@@ -280,7 +284,7 @@
                           freeWhenDone:NO];
 }
 
-
+#if 0
 - (BOOL)columnIndexIsNull:(int)columnIdx {
     return sqlite3_column_type(statement.statement, columnIdx) == SQLITE_NULL;
 }
@@ -301,6 +305,7 @@
 - (const unsigned char *)UTF8StringForColumnName:(NSString*)columnName {
     return [self UTF8StringForColumnIndex:[self columnIndexForName:columnName]];
 }
+#endif
 
 - (id)objectForColumnIndex:(int)columnIdx {
     int columnType = sqlite3_column_type(statement.statement, columnIdx);
@@ -328,9 +333,11 @@
     return returnValue;
 }
 
+#if 0
 - (id)objectForColumnName:(NSString*)columnName {
     return [self objectForColumnIndex:[self columnIndexForName:columnName]];
 }
+#endif
 
 // returns autoreleased NSString containing the name of the column in the result set
 - (NSString*)columnNameForIndex:(int)columnIdx {

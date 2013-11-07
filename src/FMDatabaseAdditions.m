@@ -33,10 +33,6 @@ return ret;
     RETURN_RESULT_FOR_QUERY_WITH_SELECTOR(int, intForColumnIndex);
 }
 
-- (long)longForQuery:(NSString*)query, ... {
-    RETURN_RESULT_FOR_QUERY_WITH_SELECTOR(long, longForColumnIndex);
-}
-
 - (long long)longLongForQuery:(NSString*)query, ... {
     RETURN_RESULT_FOR_QUERY_WITH_SELECTOR(long long, longLongIntForColumnIndex);
 }
@@ -51,6 +47,11 @@ return ret;
 
 - (NSData*)dataForQuery:(NSString*)query, ... {
     RETURN_RESULT_FOR_QUERY_WITH_SELECTOR(NSData *, dataForColumnIndex);
+}
+
+#if 0 // Unused in Couchbase Lite --jens
+- (long)longForQuery:(NSString*)query, ... {
+    RETURN_RESULT_FOR_QUERY_WITH_SELECTOR(long, longForColumnIndex);
 }
 
 - (NSDate*)dateForQuery:(NSString*)query, ... {
@@ -139,5 +140,7 @@ return ret;
     
     return validationSucceeded;
 }
+
+#endif // 0
 
 @end

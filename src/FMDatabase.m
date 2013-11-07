@@ -63,6 +63,7 @@
     return db;
 }
 
+#if 0
 - (BOOL)open {
     if (db) {
         return YES;
@@ -79,6 +80,7 @@
     
     return YES;
 }
+#endif
 
 #if SQLITE_VERSION_NUMBER >= 3005000
 - (BOOL)openWithFlags:(int)flags {
@@ -210,8 +212,8 @@
 }
 
 
-- (BOOL)rekey:(NSString*)key {
 #ifdef SQLITE_HAS_CODEC
+- (BOOL)rekey:(NSString*)key {
     if (!key) {
         return NO;
     }
@@ -224,13 +226,9 @@
     }
     
     return (rc == SQLITE_OK);
-#else
-    return NO;
-#endif
 }
 
 - (BOOL)setKey:(NSString*)key {
-#ifdef SQLITE_HAS_CODEC
     if (!key) {
         return NO;
     }
@@ -238,11 +236,10 @@
     int rc = sqlite3_key(db, [key UTF8String], (int)strlen([key UTF8String]));
     
     return (rc == SQLITE_OK);
-#else
-    return NO;
-#endif
 }
+#endif // SQLITE_HAS_CODEC
 
+#if 0
 - (BOOL)goodConnection {
     
     if (!db) {
@@ -258,6 +255,7 @@
     
     return NO;
 }
+#endif
 
 - (void)warnInUse {
     NSLog(@"The FMDatabase %@ is currently in use.", self);
@@ -400,6 +398,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
 }
 
+#ifdef ENABLE_FORMATTED_QUERY
 - (void)_extractSQL:(NSString *)sql argumentsList:(va_list)args intoString:(NSMutableString *)cleanedSQL arguments:(NSMutableArray *)arguments {
     
     NSUInteger length = [sql length];
@@ -506,6 +505,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
     
 }
+#endif // ENABLE_FORMATTED_QUERY
 
 - (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args {
     
@@ -634,6 +634,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     return result;
 }
 
+#ifdef ENABLE_FORMATTED_QUERY
 - (FMResultSet *)executeQueryWithFormat:(NSString*)format, ... {
     va_list args;
     va_start(args, format);
@@ -646,6 +647,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     
     return [self executeQuery:sql withArgumentsInArray:arguments];
 }
+#endif // ENABLE_FORMATTED_QUERY
 
 - (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray *)arguments {
     return [self executeQuery:sql withArgumentsInArray:arguments orVAList:NULL];
@@ -825,6 +827,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     return [self executeUpdate:sql error:NULL withArgumentsInArray:arguments orVAList:NULL];
 }
 
+#ifdef ENABLE_FORMATTED_QUERY
 - (BOOL)executeUpdateWithFormat:(NSString*)format, ... {
     va_list args;
     va_start(args, format);
@@ -837,7 +840,9 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     
     return [self executeUpdate:sql withArgumentsInArray:arguments];
 }
+#endif // ENABLE_FORMATTED_QUERY
 
+#if 0 // unused in CBL --jens
 - (BOOL)update:(NSString*)sql error:(NSError**)outErr bind:(id)bindArgs, ... {
     va_list args;
     va_start(args, bindArgs);
@@ -879,6 +884,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
     return b;
 }
+#endif
 
 
 

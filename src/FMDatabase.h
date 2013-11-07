@@ -32,19 +32,22 @@
 + (id)databaseWithPath:(NSString*)inPath;
 - (id)initWithPath:(NSString*)inPath;
 
+#if 0
 - (BOOL)open;
+#endif
 #if SQLITE_VERSION_NUMBER >= 3005000
 - (BOOL)openWithFlags:(int)flags;
 #endif
 - (BOOL)close;
-- (BOOL)goodConnection;
+//- (BOOL)goodConnection;
 - (void)clearCachedStatements;
 - (void)closeOpenResultSets;
 
+#ifdef SQLITE_HAS_CODEC
 // encryption methods.  You need to have purchased the sqlite encryption extensions for these to work.
 - (BOOL)setKey:(NSString*)key;
 - (BOOL)rekey:(NSString*)key;
-
+#endif
 
 - (NSString *)databasePath;
 
@@ -56,21 +59,29 @@
 
 - (sqlite3*)sqliteHandle;
 
+#if 0
 - (BOOL)update:(NSString*)sql error:(NSError**)outErr bind:(id)bindArgs, ...;
+#endif
 - (BOOL)executeUpdate:(NSString*)sql, ...;
+#ifdef ENABLE_FORMATTED_QUERY
 - (BOOL)executeUpdateWithFormat:(NSString *)format, ...;
+#endif
 - (BOOL)executeUpdate:(NSString*)sql withArgumentsInArray:(NSArray *)arguments;
 - (BOOL)executeUpdate:(NSString*)sql error:(NSError**)outErr withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args; // you shouldn't ever need to call this.  use the previous two instead.
 
 - (FMResultSet *)executeQuery:(NSString*)sql, ...;
+#ifdef ENABLE_FORMATTED_QUERY
 - (FMResultSet *)executeQueryWithFormat:(NSString*)format, ...;
+#endif
 - (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray *)arguments;
 - (FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args; // you shouldn't ever need to call this.  use the previous two instead.
 
+#if 0
 - (BOOL)rollback;
 - (BOOL)commit;
 - (BOOL)beginTransaction;
 - (BOOL)beginDeferredTransaction;
+#endif
 
 - (BOOL)inUse;
 - (void)setInUse:(BOOL)value;
