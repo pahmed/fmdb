@@ -543,7 +543,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
             rc = SQLITE_READONLY;
         }
 
-        else if (SQLITE_OK != rc) {
+        if (SQLITE_OK != rc) {
             if (logsErrors) {
                 NSLog(@"DB Error: %d \"%@\"", [self lastErrorCode], [self lastErrorMessage]);
                 NSLog(@"DB Query: %@", sql);
