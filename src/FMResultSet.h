@@ -19,7 +19,9 @@
 @interface CBL_FMResultSet : NSObject {
     CBL_FMDatabase *parentDB;
     CBL_FMStatement *statement;
-    
+
+    int lastRC;
+    BOOL alreadyCalledStep;
     NSString *query;
     NSMutableDictionary *columnNameToIndexMap;
     BOOL columnNamesSetup;
@@ -29,7 +31,7 @@
 @property (retain) NSMutableDictionary *columnNameToIndexMap;
 @property (retain) CBL_FMStatement *statement;
 
-+ (id)resultSetWithStatement:(CBL_FMStatement *)statement usingParentDatabase:(CBL_FMDatabase*)aDB;
+- (id)initWithStatement:(CBL_FMStatement *)aStatement usingParentDatabase:(CBL_FMDatabase*)aDB;
 
 - (void)close;
 

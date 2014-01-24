@@ -610,12 +610,14 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
     
     // the statement gets closed in rs's dealloc or [rs close];
-    rs = [CBL_FMResultSet resultSetWithStatement:statement usingParentDatabase:self];
-    [rs setQuery:sql];
-    NSValue *openResultSet = [NSValue valueWithNonretainedObject:rs];
-    [openResultSets addObject:openResultSet];
-    
-    statement.useCount = statement.useCount + 1;
+    rs = [[CBL_FMResultSet alloc] initWithStatement:statement usingParentDatabase:self];
+    if (rs) {
+        [rs setQuery:sql];
+        NSValue *openResultSet = [NSValue valueWithNonretainedObject:rs];
+        [openResultSets addObject:openResultSet];
+        
+        statement.useCount = statement.useCount + 1;
+    }
     
     [statement release];    
     

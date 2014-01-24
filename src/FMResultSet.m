@@ -17,14 +17,21 @@
 @synthesize columnNameToIndexMap;
 @synthesize statement;
 
-+ (id)resultSetWithStatement:(CBL_FMStatement *)statement usingParentDatabase:(CBL_FMDatabase*)aDB {
-    
-    CBL_FMResultSet *rs = [[CBL_FMResultSet alloc] init];
-    
-    [rs setStatement:statement];
-    [rs setParentDB:aDB];
-    
-    return [rs autorelease];
+- (id)initWithStatement:(CBL_FMStatement *)aStatement usingParentDatabase:(CBL_FMDatabase*)aDB {
+    self = [super init];
+    if (self) {
+        [self setStatement:aStatement];
+        [self setParentDB:aDB];
+
+        // Perform the initial sqlite3_step call now, so that we can detect an error and fail
+        // gracefully:
+        int rc = [self step];
+        if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+            [self release];
+            return nil;
+        }
+    }
+    return self;
 }
 
 - (void)finalize {
@@ -122,8 +129,7 @@
 }
 #endif
 
-- (BOOL)next {
-    
+- (int)step {
     int rc = sqlite3_step(statement.statement);
     
     if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
@@ -145,16 +151,23 @@
         NSLog(@"Unknown error calling sqlite3_step (%d: %s) rs", rc, sqlite3_errmsg([parentDB sqliteHandle]));
     }
 
-    
+    lastRC = rc;
+    alreadyCalledStep = YES;
+    return rc;
+}
+
+- (BOOL)next {
+    int rc = alreadyCalledStep ? lastRC : [self step];
+    alreadyCalledStep = NO;
     if (rc != SQLITE_ROW) {
         [self close];
+        return NO;
     }
-    
-    return (rc == SQLITE_ROW);
+    return YES;
 }
 
 - (BOOL)hasAnotherRow {
-    return sqlite3_errcode([parentDB sqliteHandle]) == SQLITE_ROW;
+    return lastRC == SQLITE_ROW;
 }
 
 - (int)columnIndexForName:(NSString*)columnName {
