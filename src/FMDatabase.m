@@ -508,7 +508,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 #endif // ENABLE_FORMATTED_QUERY
 
 - (CBL_FMResultSet *)executeQuery:(NSString *)sql withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args {
-    
+    NSParameterAssert(sql);
     if (![self databaseExists]) {
         return 0x00;
     }
@@ -597,7 +597,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         [self setInUse:NO];
         return nil;
     }
-    
+
     [statement retain]; // to balance the release below
     
     if (!statement) {
@@ -610,7 +610,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
     
     // the statement gets closed in rs's dealloc or [rs close];
-    rs = [[CBL_FMResultSet alloc] initWithStatement:statement usingParentDatabase:self];
+    rs = [[[CBL_FMResultSet alloc] initWithStatement:statement usingParentDatabase:self] autorelease];
     if (rs) {
         [rs setQuery:sql];
         NSValue *openResultSet = [NSValue valueWithNonretainedObject:rs];
@@ -656,7 +656,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 }
 
 - (BOOL)executeUpdate:(NSString*)sql error:(NSError**)outErr withArgumentsInArray:(NSArray*)arrayArgs orVAList:(va_list)args {
-    
+    NSParameterAssert(sql);
     if (![self databaseExists]) {
         return NO;
     }
