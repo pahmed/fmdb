@@ -18,6 +18,7 @@
     NSMutableDictionary *cachedStatements;
 	NSMutableSet *openResultSets;
     pthread_t   homeThread;
+    dispatch_queue_t dispatchQueue;
 }
 
 
@@ -59,6 +60,8 @@
 - (sqlite_int64)lastInsertRowId;
 
 - (sqlite3*)sqliteHandle;
+
+- (void)setDispatchQueue: (dispatch_queue_t)queue;
 
 #if 0
 - (BOOL)update:(NSString*)sql error:(NSError**)outErr bind:(id)bindArgs, ...;

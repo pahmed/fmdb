@@ -53,6 +53,10 @@
     [super dealloc];
 }
 
+- (void)setDispatchQueue: (dispatch_queue_t)queue {
+    dispatchQueue = queue;
+}
+
 + (NSString*)sqliteLibVersion {
     return [NSString stringWithFormat:@"%s", sqlite3_libversion()];
 }
@@ -887,7 +891,12 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
 - (BOOL) beginUse {
     // Equivalent to NSAssert, but not disabled by NS_BLOCK_ASSERTIONS:
-    if (!pthread_equal(pthread_self(), homeThread)) {
+    BOOL ok;
+    if (dispatchQueue)
+        ok = dispatch_get_current_queue() == dispatchQueue;
+    else
+        ok = (BOOL)pthread_equal(pthread_self(), homeThread);
+    if (!ok) {
         [[NSAssertionHandler currentHandler] handleFailureInMethod:_cmd
                                                             object:self
                                                               file:@(__FILE__)
