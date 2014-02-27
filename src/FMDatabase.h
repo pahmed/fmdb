@@ -17,6 +17,7 @@
     BOOL        enforceReadOnly;
     NSMutableDictionary *cachedStatements;
 	NSMutableSet *openResultSets;
+    pthread_t   homeThread;
 }
 
 

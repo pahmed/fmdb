@@ -1,5 +1,6 @@
 #import "FMDatabase.h"
 #import "unistd.h"
+#import <pthread.h>
 
 @implementation CBL_FMDatabase
 @synthesize inTransaction;
@@ -31,6 +32,7 @@
         logsErrors          = 0x00;
         crashOnErrors       = 0x00;
         busyRetryTimeout    = 0.0;
+        homeThread          = pthread_self();
     }
     
     return self;
@@ -300,12 +302,8 @@
 }
 
 - (sqlite_int64)lastInsertRowId {
-    
-    if (inUse) {
-        [self warnInUse];
-        return NO;
-    }
-    [self setInUse:YES];
+    if (![self beginUse])
+        return 0;
     
     sqlite_int64 ret = sqlite3_last_insert_rowid(db);
     
@@ -315,12 +313,9 @@
 }
 
 - (int)changes {
-    if (inUse) {
-        [self warnInUse];
+    if (![self beginUse])
         return 0;
-    }
-    
-    [self setInUse:YES];
+
     int ret = sqlite3_changes(db);
     [self setInUse:NO];
     
@@ -513,13 +508,9 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         return 0x00;
     }
     
-    if (inUse) {
-        [self warnInUse];
-        return 0x00;
-    }
-    
-    [self setInUse:YES];
-    
+    if (![self beginUse])
+        return nil;
+
     CBL_FMResultSet *rs = nil;
     
     int rc                  = 0x00;
@@ -661,13 +652,9 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         return NO;
     }
     
-    if (inUse) {
-        [self warnInUse];
+    if (![self beginUse])
         return NO;
-    }
-    
-    [self setInUse:YES];
-    
+
     int rc                   = 0x00;
     sqlite3_stmt *pStmt      = 0x00;
     CBL_FMStatement *cachedStmt  = 0x00;
@@ -896,6 +883,26 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
 - (void)setInUse:(BOOL)b {
     inUse = b;
+}
+
+- (BOOL) beginUse {
+    // Equivalent to NSAssert, but not disabled by NS_BLOCK_ASSERTIONS:
+    if (!pthread_equal(pthread_self(), homeThread)) {
+        [[NSAssertionHandler currentHandler] handleFailureInMethod:_cmd
+                                                            object:self
+                                                              file:@(__FILE__)
+                                                        lineNumber:__LINE__
+                                                       description:
+             @"***** THREAD-SAFETY VIOLATION: This database is being used on a thread it wasn't "
+              " created on! Please see the concurrency guidelines in the Couchbase Lite "
+              "documentation. *****"];
+    }
+    if (inUse) {
+        [self warnInUse];
+        return NO;
+    }
+    inUse = YES;
+    return YES;
 }
 
 
