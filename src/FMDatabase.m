@@ -892,10 +892,14 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 - (BOOL) beginUse {
     // Equivalent to NSAssert, but not disabled by NS_BLOCK_ASSERTIONS:
     BOOL ok;
-    if (dispatchQueue)
+    if (dispatchQueue) {
+        _Pragma("clang diagnostic push")
+        _Pragma("clang diagnostic ignored \"-Wdeprecated-declarations\"")
         ok = dispatch_get_current_queue() == dispatchQueue;
-    else
+        _Pragma("clang diagnostic pop")
+    } else {
         ok = (BOOL)pthread_equal(pthread_self(), homeThread);
+    }
     if (!ok) {
         [[NSAssertionHandler currentHandler] handleFailureInMethod:_cmd
                                                             object:self
