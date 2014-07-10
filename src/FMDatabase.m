@@ -7,7 +7,7 @@
 @synthesize cachedStatements;
 @synthesize logsErrors;
 @synthesize crashOnErrors;
-@synthesize busyRetryTimeout;
+@synthesize databaseLock;
 @synthesize checkedOut;
 @synthesize traceExecution;
 @synthesize bindNSDataAsString;
@@ -104,9 +104,7 @@
         NSLog(@"error opening!: %d", err);
         return NO;
     }
-    if (busyRetryTimeout > 0.0) {
-        sqlite3_busy_timeout(db, (int)(busyRetryTimeout * 1000));
-    }
+    sqlite3_busy_handler(db, &busyCallback, self);
     return YES;
 }
 #endif
@@ -149,15 +147,41 @@
     return YES;
 }
 
-- (void) setBusyRetryTimeout:(NSTimeInterval)timeout {
-    busyRetryTimeout = timeout;
-    if (db) {
-        sqlite3_busy_timeout(db, (int)(timeout * 1000));
+- (void) acquireLock {
+    if (0 == databaseLockLevel++)
+        [databaseLock lock];
+}
+
+- (void) releaseLock {
+    NSAssert(databaseLockLevel > 0, @"Too many calls to -[FMDB releaseLock]");
+    if (--databaseLockLevel == 0)
+        [databaseLock unlock];
+}
+
+- (BOOL) acquireTemporaryLock {
+    if (hasTemporaryLock)
+        return NO;
+    [self acquireLock];
+    hasTemporaryLock = YES;
+    return YES;
+}
+
+- (void) releaseTemporaryLock {
+    if (hasTemporaryLock) {
+        hasTemporaryLock = NO;
+        [self releaseLock];
     }
 }
 
-- (NSTimeInterval) busyRetryTimeout {
-    return busyRetryTimeout;
+static int busyCallback(void* context, int numberOfTries) {
+    CBL_FMDatabase* self = context;
+    if (numberOfTries > 0 || !self->databaseLock) {
+        return NO;
+    }
+    NSLog(@"SQLITE: DB busy; %@ waiting to acquire lock of %@", self, self.databasePath);
+    [self acquireTemporaryLock];
+    NSLog(@"SQLITE: %@ Busy-callback acquired lock of %@", self, self.databasePath);
+    return YES;
 }
 
 - (void)clearCachedStatements {
@@ -190,6 +214,7 @@
 - (void)resultSetDidClose:(CBL_FMResultSet *)resultSet {
     NSValue *setValue = [NSValue valueWithNonretainedObject:resultSet];
     [openResultSets removeObject:setValue];
+    [self releaseLock];
 }
 
 /** Returns a list of SQL queries that still have open result sets.
@@ -605,6 +630,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
     
     // the statement gets closed in rs's dealloc or [rs close];
+    [self acquireLock];
     rs = [[[CBL_FMResultSet alloc] initWithStatement:statement usingParentDatabase:self] autorelease];
     if (rs) {
         [rs setQuery:sql];
@@ -612,6 +638,8 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         [openResultSets addObject:openResultSet];
         
         statement.useCount = statement.useCount + 1;
+    } else {
+        [self releaseLock];
     }
     
     [statement release];    
@@ -735,6 +763,10 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         [self setInUse:NO];
         return NO;
     }
+
+    // Always acquire the lock before making changes to the database since they will require
+    // exclusive access.
+    [self acquireTemporaryLock];
     
     /* Call sqlite3_step() to run the virtual machine. Since the SQL being
      ** executed is not a SELECT statement, we assume no data will be returned.
@@ -748,7 +780,6 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
     if (SQLITE_BUSY == rc || SQLITE_LOCKED == rc) {
         NSLog(@"%s:%d Database busy (%@)", __FUNCTION__, __LINE__, [self databasePath]);
-        NSLog(@"Database busy");
     }
     else if (SQLITE_DONE == rc || SQLITE_ROW == rc) {
         // all is well, let's return.
@@ -887,6 +918,8 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
 - (void)setInUse:(BOOL)b {
     inUse = b;
+    if (!b)
+        [self releaseTemporaryLock];
 }
 
 - (BOOL) beginUse {

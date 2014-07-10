@@ -13,6 +13,9 @@
     BOOL        traceExecution;
     BOOL        checkedOut;
     NSTimeInterval busyRetryTimeout;
+    NSLock*     databaseLock;
+    int         databaseLockLevel;
+    BOOL        hasTemporaryLock;
     BOOL        shouldCacheStatements;
     BOOL        enforceReadOnly;
     NSMutableDictionary *cachedStatements;
@@ -25,7 +28,7 @@
 @property (assign) BOOL inTransaction;
 @property (assign) BOOL traceExecution;
 @property (assign) BOOL checkedOut;
-@property (assign) NSTimeInterval busyRetryTimeout;     // changed to a time interval, not a count!
+@property (retain) NSLock* databaseLock;
 @property (assign) BOOL crashOnErrors;
 @property (assign) BOOL logsErrors;
 @property (retain) NSMutableDictionary *cachedStatements;
@@ -62,6 +65,9 @@
 - (sqlite3*)sqliteHandle;
 
 - (void)setDispatchQueue: (dispatch_queue_t)queue;
+
+- (void) acquireLock;
+- (void) releaseLock;
 
 @property (nonatomic) BOOL bindNSDataAsString;
 
