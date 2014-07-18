@@ -10,6 +10,7 @@
 @synthesize busyRetryTimeout;
 @synthesize checkedOut;
 @synthesize traceExecution;
+@synthesize bindNSDataAsString;
 
 // If nonzero, every newly-compiled query will have its query plan explained to the console.
 // This is obviously for development use only!
@@ -378,12 +379,11 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
     else if ([obj isKindOfClass:[NSData class]]) {
         const void* bytes = [obj bytes];
-        if (bytes) {
-            sqlite3_bind_blob(pStmt, idx, bytes, (int)[obj length], SQLITE_TRANSIENT);
+        int length = (int)[obj length];
+        if (bindNSDataAsString) {
+            sqlite3_bind_text(pStmt, idx, (bytes ?: ""), length, SQLITE_TRANSIENT);
         } else {
-            // it's an empty NSData object, aka [NSData data].
-            // Don't pass a NULL pointer, or sqlite will bind a SQL null instead of a blob!
-            sqlite3_bind_blob(pStmt, idx, "", 0, SQLITE_STATIC);
+            sqlite3_bind_blob(pStmt, idx, (bytes ?: ""), length, SQLITE_TRANSIENT);
         }
     }
     else if ([obj isKindOfClass:[NSDate class]]) {

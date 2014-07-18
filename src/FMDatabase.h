@@ -63,6 +63,8 @@
 
 - (void)setDispatchQueue: (dispatch_queue_t)queue;
 
+@property (nonatomic) BOOL bindNSDataAsString;
+
 #if 0
 - (BOOL)update:(NSString*)sql error:(NSError**)outErr bind:(id)bindArgs, ...;
 #endif
