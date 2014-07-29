@@ -890,17 +890,25 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 }
 
 - (BOOL) beginUse {
-    // Equivalent to NSAssert, but not disabled by NS_BLOCK_ASSERTIONS:
     BOOL ok;
     if (dispatchQueue) {
+#if 1
+        ok = YES;
+#else
+        // This check doesn't work if the current queue is separate from dispatchQueue but has
+        // dispatchQueue as its target queue. This is a legal setup but will trigger the
+        // exception. There's no way to detect this using the public API (I believe) so I have to
+        // just skip the check entirely when using dispatch queues.
         _Pragma("clang diagnostic push")
         _Pragma("clang diagnostic ignored \"-Wdeprecated-declarations\"")
         ok = dispatch_get_current_queue() == dispatchQueue;
         _Pragma("clang diagnostic pop")
+#endif
     } else {
         ok = (BOOL)pthread_equal(pthread_self(), homeThread);
     }
     if (!ok) {
+        // Equivalent to NSAssert, but not disabled by NS_BLOCK_ASSERTIONS:
         [[NSAssertionHandler currentHandler] handleFailureInMethod:_cmd
                                                             object:self
                                                               file:@(__FILE__)
