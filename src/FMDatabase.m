@@ -104,7 +104,9 @@
         NSLog(@"error opening!: %d", err);
         return NO;
     }
+#if 0 // not using this busy handler yet
     sqlite3_busy_handler(db, &busyCallback, self);
+#endif
     return YES;
 }
 #endif
@@ -148,8 +150,19 @@
 }
 
 - (void) acquireLock {
-    if (0 == databaseLockLevel++)
+    if (0 == databaseLockLevel++) {
+#if DEBUG
+        if (databaseLock && ![databaseLock tryLock]) {
+            NSLog(@"SQLITE: %p Waiting for %@ ...", self, databaseLock.name);
+            CFAbsoluteTime t = CFAbsoluteTimeGetCurrent();
+            [databaseLock lock];
+            t = CFAbsoluteTimeGetCurrent() - t;
+            NSLog(@"SQLITE: %p ... got %@ (%.6f sec)", self, databaseLock.name, t);
+        }
+#else
         [databaseLock lock];
+#endif
+    }
 }
 
 - (void) releaseLock {
@@ -173,6 +186,7 @@
     }
 }
 
+#if 0 // not using this yet
 static int busyCallback(void* context, int numberOfTries) {
     CBL_FMDatabase* self = context;
     if (numberOfTries > 0 || !self->databaseLock) {
@@ -183,6 +197,7 @@ static int busyCallback(void* context, int numberOfTries) {
     NSLog(@"SQLITE: %@ Busy-callback acquired lock of %@", self, self.databasePath);
     return YES;
 }
+#endif
 
 - (void)clearCachedStatements {
     
