@@ -21,7 +21,7 @@
     self = [super init];
     if (self) {
         [self setStatement:aStatement];
-        [self setParentDB:aDB];
+        parentDB = aDB;
 
         // Perform the initial sqlite3_step call now, so that we can detect an error and fail
         // gracefully:
@@ -55,7 +55,7 @@
     [statement reset];
     [statement release];
     statement = nil;
-    
+
     // we don't need this anymore... (i think)
     //[parentDB setInUse:NO];
     [parentDB resultSetDidClose:self];
@@ -355,10 +355,6 @@
 // returns autoreleased NSString containing the name of the column in the result set
 - (NSString*)columnNameForIndex:(int)columnIdx {
     return [NSString stringWithUTF8String: sqlite3_column_name(statement.statement, columnIdx)];
-}
-
-- (void)setParentDB:(CBL_FMDatabase *)newDb {
-    parentDB = newDb;
 }
 
 

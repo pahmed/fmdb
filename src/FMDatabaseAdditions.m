@@ -22,7 +22,6 @@ type ret = (type)0;                                                  \
 if ([resultSet next])                                                \
     ret = [resultSet sel:0];                                         \
 [resultSet close];                                                   \
-[resultSet setParentDB:nil];                                         \
 return ret;
 
 

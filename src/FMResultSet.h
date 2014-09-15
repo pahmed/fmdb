@@ -35,8 +35,6 @@
 
 - (void)close;
 
-- (void)setParentDB:(CBL_FMDatabase *)newDb;
-
 - (BOOL)next;
 - (BOOL)hasAnotherRow;
 
