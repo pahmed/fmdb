@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import "sqlite3.h"
 #import "FMResultSet.h"
+@class MYReadWriteLock;
 
 @interface CBL_FMDatabase : NSObject 
 {
@@ -13,8 +14,8 @@
     BOOL        traceExecution;
     BOOL        checkedOut;
     NSTimeInterval busyRetryTimeout;
-    NSLock*     databaseLock;
-    int         databaseLockLevel;
+    MYReadWriteLock* databaseLock;
+    int         writeLockLevel;
     BOOL        hasTemporaryLock;
     BOOL        shouldCacheStatements;
     BOOL        enforceReadOnly;
@@ -28,7 +29,7 @@
 @property (assign) BOOL inTransaction;
 @property (assign) BOOL traceExecution;
 @property (assign) BOOL checkedOut;
-@property (retain) NSLock* databaseLock;
+@property (retain) MYReadWriteLock* databaseLock;
 @property (assign) BOOL crashOnErrors;
 @property (assign) BOOL logsErrors;
 @property (retain) NSMutableDictionary *cachedStatements;
@@ -66,8 +67,9 @@
 
 - (void)setDispatchQueue: (dispatch_queue_t)queue;
 
-- (void) acquireLock;
-- (void) releaseLock;
+- (BOOL) beginTransaction;
+- (BOOL) endTransaction: (BOOL)commit;
+@property int transactionLevel;
 
 @property (nonatomic) BOOL bindNSDataAsString;
 

@@ -1,5 +1,6 @@
 #import "FMDatabase.h"
 #import "unistd.h"
+#import "MYReadWriteLock.h"
 #import <pthread.h>
 
 @implementation CBL_FMDatabase
@@ -11,10 +12,13 @@
 @synthesize checkedOut;
 @synthesize traceExecution;
 @synthesize bindNSDataAsString;
+@synthesize transactionLevel;
 
 // If nonzero, every newly-compiled query will have its query plan explained to the console.
 // This is obviously for development use only!
 #define EXPLAIN_EVERYTHING 0
+
+#define LOG_LOCKS 0
 
 // Number of _microseconds_ to wait between attempts to retry a query when the db is busy/locked.
 #define RETRY_DELAY_MICROSEC 20000
@@ -104,16 +108,15 @@
         NSLog(@"error opening!: %d", err);
         return NO;
     }
-#if 0 // not using this busy handler yet
     sqlite3_busy_handler(db, &busyCallback, self);
-#endif
     return YES;
 }
 #endif
 
 
 - (BOOL)close {
-    
+    NSAssert(transactionLevel == 0, @"Attempting to close db during a transaction");
+
     [self clearCachedStatements];
     [self closeOpenResultSets];
     
@@ -149,15 +152,70 @@
     return YES;
 }
 
-- (void) acquireLock {
-    if (0 == databaseLockLevel++) {
-#if DEBUG
+- (BOOL) beginTransaction {
+    [self acquireWriteLock];
+    if (![self executeUpdate: [NSString stringWithFormat: @"SAVEPOINT cbl_%d",
+                               transactionLevel]]) {
+        [self releaseWriteLock];
+        return NO;
+    }
+    return YES;
+}
+
+- (BOOL) endTransaction: (BOOL)commit {
+    BOOL ok = YES;
+    if (!commit) {
+        if (![self executeUpdate: [NSString stringWithFormat: @"ROLLBACK TO cbl_%d",
+                                   transactionLevel]]) {
+            ok = NO;
+        }
+    }
+    if (![self executeUpdate: [NSString stringWithFormat: @"RELEASE cbl_%d", transactionLevel]]) {
+        ok = NO;
+    }
+    [self releaseWriteLock];
+    return ok;
+}
+
+- (void) acquireWriteLock {
+    if (transactionLevel++ == 0) {
+#if LOG_LOCKS
+        if (databaseLock && ![databaseLock tryLockForWriting]) {
+            NSLog(@"SQLITE: %p Waiting to WRITE %@ ...", self, databaseLock.name);
+            CFAbsoluteTime t = CFAbsoluteTimeGetCurrent();
+            [databaseLock lockForWriting];
+            t = CFAbsoluteTimeGetCurrent() - t;
+            NSLog(@"SQLITE: %p ... got WRITE lock of %@ (%.6f sec)", self, databaseLock.name, t);
+        } else if (databaseLock) {
+            NSLog(@"SQLITE: %p got WRITE lock of %@", self, databaseLock.name);
+        }
+#else
+        [databaseLock lockForWriting];
+#endif
+    }
+}
+
+- (void) releaseWriteLock {
+    NSAssert(transactionLevel > 0, @"too many calls to releaseWriteLock");
+    if (--transactionLevel == 0) {
+#if LOG_LOCKS
+        NSLog(@"SQLITE: %p releasing WRITE lock of %@", self, databaseLock.name);
+#endif
+        [databaseLock unlock];
+    }
+}
+
+- (void) acquireReadLock {
+    if (transactionLevel == 0) {
+#if LOG_LOCKS
         if (databaseLock && ![databaseLock tryLock]) {
-            NSLog(@"SQLITE: %p Waiting for %@ ...", self, databaseLock.name);
+            NSLog(@"SQLITE: %p Waiting to read %@ ...", self, databaseLock.name);
             CFAbsoluteTime t = CFAbsoluteTimeGetCurrent();
             [databaseLock lock];
             t = CFAbsoluteTimeGetCurrent() - t;
-            NSLog(@"SQLITE: %p ... got %@ (%.6f sec)", self, databaseLock.name, t);
+            NSLog(@"SQLITE: %p ... got read lock of %@ (%.6f sec)", self, databaseLock.name, t);
+        } else if (databaseLock) {
+            NSLog(@"SQLITE: %p got read lock of %@", self, databaseLock.name);
         }
 #else
         [databaseLock lock];
@@ -165,39 +223,24 @@
     }
 }
 
-- (void) releaseLock {
-    NSAssert(databaseLockLevel > 0, @"Too many calls to -[FMDB releaseLock]");
-    if (--databaseLockLevel == 0)
+- (void) releaseReadLock {
+    if (transactionLevel == 0) {
+#if LOG_LOCKS
+        NSLog(@"SQLITE: %p releasing read lock of %@", self, databaseLock.name);
+#endif
         [databaseLock unlock];
-}
-
-- (BOOL) acquireTemporaryLock {
-    if (hasTemporaryLock)
-        return NO;
-    [self acquireLock];
-    hasTemporaryLock = YES;
-    return YES;
-}
-
-- (void) releaseTemporaryLock {
-    if (hasTemporaryLock) {
-        hasTemporaryLock = NO;
-        [self releaseLock];
     }
 }
 
-#if 0 // not using this yet
 static int busyCallback(void* context, int numberOfTries) {
     CBL_FMDatabase* self = context;
-    if (numberOfTries > 0 || !self->databaseLock) {
+    NSLog(@"*** SQLITE database busy: %@", self);
+    if (numberOfTries > 10) {
         return NO;
     }
-    NSLog(@"SQLITE: DB busy; %@ waiting to acquire lock of %@", self, self.databasePath);
-    [self acquireTemporaryLock];
-    NSLog(@"SQLITE: %@ Busy-callback acquired lock of %@", self, self.databasePath);
+    usleep(1000*numberOfTries);
     return YES;
 }
-#endif
 
 - (void)clearCachedStatements {
     
@@ -229,7 +272,7 @@ static int busyCallback(void* context, int numberOfTries) {
 - (void)resultSetDidClose:(CBL_FMResultSet *)resultSet {
     NSValue *setValue = [NSValue valueWithNonretainedObject:resultSet];
     [openResultSets removeObject:setValue];
-    [self releaseLock];
+    [self releaseReadLock]; // acquireReadLock is called when a result set is created
 }
 
 /** Returns a list of SQL queries that still have open result sets.
@@ -645,7 +688,8 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     }
     
     // the statement gets closed in rs's dealloc or [rs close];
-    [self acquireLock];
+    // the ResultSet object acquires the db lock on creation and releases it on close.
+    [self acquireReadLock];
     rs = [[[CBL_FMResultSet alloc] initWithStatement:statement usingParentDatabase:self] autorelease];
     if (rs) {
         [rs setQuery:sql];
@@ -654,7 +698,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         
         statement.useCount = statement.useCount + 1;
     } else {
-        [self releaseLock];
+        [self releaseReadLock];
     }
     
     [statement release];    
@@ -781,7 +825,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
     // Always acquire the lock before making changes to the database since they will require
     // exclusive access.
-    [self acquireTemporaryLock];
+    [self acquireWriteLock];
     
     /* Call sqlite3_step() to run the virtual machine. Since the SQL being
      ** executed is not a SELECT statement, we assume no data will be returned.
@@ -844,6 +888,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
     if (rc == SQLITE_OK)
         rc = rcCleanup;
 
+    [self releaseWriteLock];
     [self setInUse:NO];
     
     return (rc == SQLITE_OK);
@@ -881,50 +926,6 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 }
 #endif // ENABLE_FORMATTED_QUERY
 
-#if 0 // unused in CBL --jens
-- (BOOL)update:(NSString*)sql error:(NSError**)outErr bind:(id)bindArgs, ... {
-    va_list args;
-    va_start(args, bindArgs);
-    
-    BOOL result = [self executeUpdate:sql error:outErr withArgumentsInArray:nil orVAList:args];
-    
-    va_end(args);
-    return result;
-}
-
-- (BOOL)rollback {
-    BOOL b = [self executeUpdate:@"ROLLBACK TRANSACTION;"];
-    if (b) {
-        inTransaction = NO;
-    }
-    return b;
-}
-
-- (BOOL)commit {
-    BOOL b =  [self executeUpdate:@"COMMIT TRANSACTION;"];
-    if (b) {
-        inTransaction = NO;
-    }
-    return b;
-}
-
-- (BOOL)beginDeferredTransaction {
-    BOOL b =  [self executeUpdate:@"BEGIN DEFERRED TRANSACTION;"];
-    if (b) {
-        inTransaction = YES;
-    }
-    return b;
-}
-
-- (BOOL)beginTransaction {
-    BOOL b =  [self executeUpdate:@"BEGIN EXCLUSIVE TRANSACTION;"];
-    if (b) {
-        inTransaction = YES;
-    }
-    return b;
-}
-#endif
-
 
 
 - (BOOL)inUse {
@@ -933,8 +934,6 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
 
 - (void)setInUse:(BOOL)b {
     inUse = b;
-    if (!b)
-        [self releaseTemporaryLock];
 }
 
 - (BOOL) beginUse {
