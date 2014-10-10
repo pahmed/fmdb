@@ -642,7 +642,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         if (shouldCacheStatements && pStmt) {
             NSLog(@"$$$ Caching SQL query: %@\n%@",
                   [sql stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]],
-                  [FMStatement explainQueryPlan: pStmt]);
+                  [CBL_FMStatement explainQueryPlan: pStmt]);
         }
 #endif
 }
@@ -787,7 +787,7 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         if (shouldCacheStatements && pStmt) {
             NSLog(@"$$$ Caching SQL query: %@\n%@",
                   [sql stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]],
-                  [FMStatement explainQueryPlan: pStmt]);
+                  [CBL_FMStatement explainQueryPlan: pStmt]);
         }
 #endif
     }
