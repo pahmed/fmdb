@@ -179,6 +179,7 @@
 
 - (void) acquireWriteLock {
     if (transactionLevel++ == 0) {
+        NSAssert(readLevel == 0, @"Already holding read lock");
 #if LOG_LOCKS
         if (databaseLock && ![databaseLock tryLockForWriting]) {
             NSLog(@"SQLITE: %p Waiting to WRITE %@ ...", self, databaseLock.name);
@@ -192,6 +193,8 @@
 #else
         [databaseLock lockForWriting];
 #endif
+        // Bump the readLevel so that acquireReadLock won't try to acquire the lock
+        ++readLevel;
     }
 }
 
@@ -202,11 +205,12 @@
         NSLog(@"SQLITE: %p releasing WRITE lock of %@", self, databaseLock.name);
 #endif
         [databaseLock unlock];
+        --readLevel; // Balances the increment in -acquireWriteLock
     }
 }
 
 - (void) acquireReadLock {
-    if (transactionLevel == 0) {
+    if (readLevel++ == 0) {
 #if LOG_LOCKS
         if (databaseLock && ![databaseLock tryLock]) {
             NSLog(@"SQLITE: %p Waiting to read %@ ...", self, databaseLock.name);
@@ -224,7 +228,8 @@
 }
 
 - (void) releaseReadLock {
-    if (transactionLevel == 0) {
+    NSAssert(readLevel > 0, @"Too many calls to releaseReadLock");
+    if (--readLevel == 0) {
 #if LOG_LOCKS
         NSLog(@"SQLITE: %p releasing read lock of %@", self, databaseLock.name);
 #endif

@@ -15,7 +15,7 @@
     BOOL        checkedOut;
     NSTimeInterval busyRetryTimeout;
     MYReadWriteLock* databaseLock;
-    int         writeLockLevel;
+    int         readLevel;
     BOOL        hasTemporaryLock;
     BOOL        shouldCacheStatements;
     BOOL        enforceReadOnly;
