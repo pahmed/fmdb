@@ -702,10 +702,10 @@ static int bindNSString(sqlite3_stmt *pStmt, int idx, NSString *str) {
         [openResultSets addObject:openResultSet];
         
         statement.useCount = statement.useCount + 1;
-    } else {
-        [self releaseReadLock];
     }
-    
+    // rs will release the read lock when it closes. If it fails to initialize it will close
+    // itself immediately, during the -init... method.
+
     [statement release];    
     
     [self setInUse:NO];
