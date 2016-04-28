@@ -71,6 +71,10 @@
 - (BOOL) endTransaction: (BOOL)commit;
 @property int transactionLevel;
 
+- (void) acquireReadLock;
+- (void) releaseReadLock;
+@property (readonly) BOOL hasLock;
+
 @property (nonatomic) BOOL bindNSDataAsString;
 
 #if 0

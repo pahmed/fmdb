@@ -237,6 +237,11 @@
     }
 }
 
+- (BOOL) hasLock {
+    return readLevel > 0;
+}
+
+
 static int busyCallback(void* context, int numberOfTries) {
     CBL_FMDatabase* self = context;
     NSLog(@"*** SQLITE database busy: %@", self);
