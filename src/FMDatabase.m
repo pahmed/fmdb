@@ -18,10 +18,13 @@
 // This is obviously for development use only!
 #define EXPLAIN_EVERYTHING 0
 
+// If nonzero, the readLock methods allow reads concurrently with a single writer.
+// This is legal if the database is in WAL mode.
+#define CONCURRENT_READS 0
+
+// Set this to 1 to log messages about locks, for debugging.
 #define LOG_LOCKS 0
 
-// Number of _microseconds_ to wait between attempts to retry a query when the db is busy/locked.
-#define RETRY_DELAY_MICROSEC 20000
 
 + (id)databaseWithPath:(NSString*)aPath {
     return [[[self alloc] initWithPath:aPath] autorelease];
@@ -211,6 +214,7 @@
 
 - (void) acquireReadLock {
     if (readLevel++ == 0) {
+#if !CONCURRENT_READS
 #if LOG_LOCKS
         if (databaseLock && ![databaseLock tryLock]) {
             NSLog(@"SQLITE: %p Waiting to read %@ ...", self, databaseLock.name);
@@ -224,16 +228,19 @@
 #else
         [databaseLock lock];
 #endif
+#endif
     }
 }
 
 - (void) releaseReadLock {
     NSAssert(readLevel > 0, @"Too many calls to releaseReadLock");
     if (--readLevel == 0) {
+#if !CONCURRENT_READS
 #if LOG_LOCKS
         NSLog(@"SQLITE: %p releasing read lock of %@", self, databaseLock.name);
 #endif
         [databaseLock unlock];
+#endif
     }
 }
 
