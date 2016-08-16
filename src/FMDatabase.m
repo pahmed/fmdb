@@ -57,6 +57,7 @@
     [openResultSets release];
     [cachedStatements release];
     [databasePath release];
+    [databaseLock release];
     
     [super dealloc];
 }
