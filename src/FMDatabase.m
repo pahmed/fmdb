@@ -20,7 +20,7 @@
 
 // If nonzero, the readLock methods allow reads concurrently with a single writer.
 // This is legal if the database is in WAL mode.
-#define CONCURRENT_READS 0
+#define CONCURRENT_READS 1
 
 // Set this to 1 to log messages about locks, for debugging.
 #define LOG_LOCKS 0
